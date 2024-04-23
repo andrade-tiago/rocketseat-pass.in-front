@@ -65,7 +65,6 @@ export function AttendeeList() {
     window.history.pushState({}, "", url)
     setPage(page)
   }
-
   function setCurrentSearch(search: string) {
     const url = new URL(window.location.toString())
 
