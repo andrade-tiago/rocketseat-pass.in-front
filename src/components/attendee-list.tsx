@@ -7,27 +7,90 @@ import { Table } from "./table/table"
 import { TableHeader } from "./table/table-header"
 import { TableCell } from "./table/table-cell"
 import { TableRow } from "./table/table-row"
-import { attendees } from "../data/attendees"
-import { useState } from "react"
+import { ChangeEvent, useEffect, useState } from "react"
+import { api } from "../services/api"
 
 dayjs.extend(relativeTime)
 dayjs.locale("pt-br")
 
+interface Attendee {
+  id: string
+  name: string
+  email: string
+  createdAt: string
+  checkedInAt: string | null
+}
+
 export function AttendeeList() {
-  const [page, setPage] = useState(1)
-  const totalPages = Math.ceil(attendees.length / 10);
+  const [search, setSearch] = useState(() => {
+    const url = new URL(window.location.toString())
+
+    return url.searchParams.get("search") ?? ""
+  })
+
+  const [page, setPage] = useState(() => {
+    const url = new URL(window.location.toString())
+
+    const page = url.searchParams.get("page")
+    return page ? Number(page) : 1
+  })
+
+  const [attendees, setAttendees] = useState<Attendee[]>([])
+  const [total, setTotal] = useState(0)
+
+  const totalPages = Math.ceil(total / 10);
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    params.set("pageIndex", String(page - 1))
+
+    if (search.length) {
+      params.set("query", search)
+    }
+
+    api.get("events/3a123da9-e45b-46d0-ab8f-1d993a040e11/attendees", {
+      params: params,
+    })
+      .then(response => {
+        setAttendees(response.data.attendees)
+        setTotal(response.data.total)
+      })
+  }, [page, search])
+
+  function setCurrentPage(page: number) {
+    const url = new URL(window.location.toString())
+
+    url.searchParams.set("page", String(page))
+
+    window.history.pushState({}, "", url)
+    setPage(page)
+  }
+
+  function setCurrentSearch(search: string) {
+    const url = new URL(window.location.toString())
+
+    url.searchParams.set("query", search)
+
+    window.history.pushState({}, "", url)
+    setSearch(search)
+  }
+
+  function onSearchInputChanged(event: ChangeEvent<HTMLInputElement>) {
+    setCurrentSearch(event.target.value)
+    setCurrentPage(1)
+  }
 
   function goToNextPage() {
-    setPage(page + 1)
+    setCurrentPage(page + 1)
   }
   function goToPreviousPage() {
-    setPage(page - 1)
+    setCurrentPage(page - 1)
   }
   function goToFirstPage() {
-    setPage(1)
+    setCurrentPage(1)
   }
   function goToLastPage() {
-    setPage(totalPages)
+    setCurrentPage(page + 1)
   }
 
   return (
@@ -36,7 +99,12 @@ export function AttendeeList() {
         <h1 className="text-2xl font-bold">Participantes</h1>
         <div className="px-3 py-1.5 w-72 border border-white/10 rounded-lg flex items-center gap-3">
           <Search className="size-4 text-emerald-300" />
-          <input className="bg-transparent text-sm flex-1 outline-none border-0 p-0 focus:ring-0" placeholder="Buscar participante..." />
+          <input
+            className="bg-transparent text-sm flex-1 outline-none border-0 p-0 focus:ring-0"
+            placeholder="Buscar participante..."
+            value={search}
+            onChange={onSearchInputChanged}
+          />
         </div>
       </div>
 
@@ -54,7 +122,7 @@ export function AttendeeList() {
           </tr>
         </thead>
         <tbody>
-          {attendees.slice((page - 1) * 10, page * 10).map((attendee) => {
+          {attendees.map((attendee) => {
             return (
               <TableRow key={attendee.id}>
                 <TableCell style={{ width: 48 }}>
@@ -72,7 +140,11 @@ export function AttendeeList() {
                   </div>
                 </TableCell>
                 <TableCell>{dayjs().to(attendee.createdAt)}</TableCell>
-                <TableCell>{dayjs().to(attendee.checkedInAt)}</TableCell>
+                <TableCell>
+                  {attendee.checkedInAt
+                    ? dayjs().to(attendee.checkedInAt)
+                    : <span className="text-zinc-700">não realizado</span>}
+                </TableCell>
                 <TableCell style={{ width: 64 }}>
                   <IconButton transparent>
                     <MoreHorizontal className="size-4" />
@@ -85,7 +157,7 @@ export function AttendeeList() {
         <tfoot>
           <tr>
             <TableCell colSpan={3}>
-              Mostrando {page === totalPages ? (totalPages % 10) : 10} de {attendees.length} itens
+              Mostrando {attendees.length} de {total} {total === 1 ? "item": "itens"}
             </TableCell>
             <TableCell className="text-right" colSpan={3}>
               <div className="inline-flex items-center gap-8">
